@@ -1,5 +1,6 @@
-MIT License
-
+#ifndef LIBLNN_INCLUDE_DEVICE_PROPS_H
+#define LIBLNN_INCLUDE_DEVICE_PROPS_H
+/*
 Copyright (c) 2019 Naomasa Matsubayashi (aka. Fadis)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,3 +20,22 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+#include <memory>
+#include <vulkan/vulkan.hpp>
+#include <liblnn/setter.h>
+namespace liblnn {
+  struct device_props {
+    device_props() {}
+    LIBLNN_SET_LARGE_VALUE( props ) 
+    LIBLNN_SET_LARGE_VALUE( props2 ) 
+    LIBLNN_SET_LARGE_VALUE( subgroup_props ) 
+    vk::PhysicalDeviceProperties props;
+    vk::PhysicalDeviceProperties2 props2;
+    vk::PhysicalDeviceSubgroupProperties subgroup_props;
+  };
+  device_props get_device_props( const vk::PhysicalDevice &physical_device );
+}
+#endif
+

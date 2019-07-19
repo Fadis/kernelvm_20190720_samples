@@ -1,0 +1,255 @@
+#include <iostream>
+#include <chrono>
+#include <thread>
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+#include <liblnn/config.h>
+#include <liblnn/init_glfw.h>
+#include <liblnn/instance.h>
+#include <liblnn/device.h>
+#include <liblnn/shader.h>
+
+std::shared_ptr< vk::PipelineCache >
+get_pipeline_cache(
+  const std::shared_ptr< vk::Device > &device
+) {
+  auto pipeline_cache = device->createPipelineCache( vk::PipelineCacheCreateInfo() );
+  return std::shared_ptr< vk::PipelineCache >(
+    new vk::PipelineCache( pipeline_cache ),
+    [device]( vk::PipelineCache *p ) {
+      if( p ) {
+        device->destroyPipelineCache( *p );
+	delete p;
+      }
+    }
+  );
+}
+
+std::shared_ptr< vk::DescriptorPool > get_descriptior_pool(
+  const std::shared_ptr< vk::Device > &device,
+  const std::vector< vk::DescriptorPoolSize > &size,
+  size_t max
+) {
+  auto descriptor_pool = device->createDescriptorPool(
+    vk::DescriptorPoolCreateInfo()
+      .setPoolSizeCount( size.size() )
+      .setPPoolSizes( size.data() )
+      .setMaxSets( max )
+      .setFlags( vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet )
+  );
+  return std::shared_ptr< vk::DescriptorPool >(
+    new vk::DescriptorPool( std::move( descriptor_pool ) ),
+    [device]( vk::DescriptorPool *p ) {
+      if( p ) {
+        device->destroyDescriptorPool( *p );
+        delete p;
+      }
+    }
+  );
+}
+
+std::tuple< std::shared_ptr< std::vector< vk::DescriptorSet > >, std::shared_ptr< std::vector< vk::DescriptorSetLayout > > >
+get_descriptor_set(
+  const std::shared_ptr< vk::Device > &device,
+  const std::shared_ptr< vk::DescriptorPool > &descriptor_pool,
+  const std::vector< vk::DescriptorSetLayoutBinding > &descriptor_set_layout_bindings
+) {
+  std::vector< vk::DescriptorSetLayout > descriptor_set_layout;
+  descriptor_set_layout.emplace_back( device->createDescriptorSetLayout(
+    vk::DescriptorSetLayoutCreateInfo()
+      .setBindingCount( descriptor_set_layout_bindings.size() )
+      .setPBindings( descriptor_set_layout_bindings.data() ),
+    nullptr
+  ) );
+  auto descriptor_set = device->allocateDescriptorSets(
+    vk::DescriptorSetAllocateInfo()
+      .setDescriptorPool( *descriptor_pool )
+      .setDescriptorSetCount( descriptor_set_layout.size() )
+      .setPSetLayouts( descriptor_set_layout.data() )
+  );
+  return std::make_tuple(
+    std::shared_ptr< std::vector< vk::DescriptorSet > >(
+      new std::vector< vk::DescriptorSet >( std::move( descriptor_set ) ),
+      [device,descriptor_pool]( std::vector< vk::DescriptorSet > *p ) {
+        if( p ) {
+          device->freeDescriptorSets( *descriptor_pool, p->size(), p->data() );
+          delete p;
+        }
+      }
+    ),
+    std::shared_ptr< std::vector< vk::DescriptorSetLayout > >(
+      new std::vector< vk::DescriptorSetLayout >( std::move( descriptor_set_layout ) ),
+      [device]( std::vector< vk::DescriptorSetLayout > *p ) {
+        if( p ) {
+          std::for_each( p->begin(), p->end(), [&]( auto &v ) { device->destroyDescriptorSetLayout( v ); } );
+          delete p;
+        }
+      }
+    )
+  );
+}
+
+
+std::shared_ptr< vk::PipelineLayout >
+get_pipeline_layout(
+  const std::shared_ptr< vk::Device > &device,
+  const std::shared_ptr< std::vector< vk::DescriptorSetLayout > > &descriptor_set_layout,
+  const std::vector< vk::PushConstantRange > &push_constant_range
+) {
+  auto pipeline_layout = device->createPipelineLayout(
+    vk::PipelineLayoutCreateInfo()
+      .setSetLayoutCount( descriptor_set_layout->size() )
+      .setPSetLayouts( descriptor_set_layout->data() )
+      .setPushConstantRangeCount( push_constant_range.size() )
+      .setPPushConstantRanges( push_constant_range.data() )
+  );
+  return std::shared_ptr< vk::PipelineLayout >(
+    new vk::PipelineLayout( pipeline_layout ),
+    [device]( vk::PipelineLayout *p ) {
+      if( p ) {
+        device->destroyPipelineLayout( *p );
+	delete p;
+      }
+    }
+  );
+}
+
+std::shared_ptr< VmaAllocator >
+get_allocator( const std::shared_ptr< vk::Device > &device ) {
+  VmaAllocatorCreateInfo allocator_info = {};
+  allocator_info.physicalDevice = physical_device;
+  allocator_info.device = *device;
+  VmaAllocator allocator;
+  {
+    const auto result = vmaCreateAllocator( &allocator_info, &allocator );
+    if( result != VK_SUCCESS ) vk::throwResultException( vk::Result( result ), "アロケータを作成できない" );
+  }
+  return std::shared_ptr< VmaAllocator >(
+    new VmaAllocator( std::move( allocator ) ),
+    []( VmaAllocator *p ){
+      vmaDestroyAllocator( *p );
+      delete p;
+    }
+  );
+}
+
+namespace vmapp {
+  struct AllocatorCreateInfo {
+    
+  };
+  struct MemoryUsage {
+    MemoryUsage() {
+      alloc_info.flags = 0;
+      alloc_info.usage = VMA_MEMORY_USAGE_UNKNOWN;
+      alloc_info.requiredFlags = 0;
+      alloc_info.preferredFlags = 0;
+      alloc_info.memoryTypeBits = 0;
+      alloc_info.pool = VK_NULL_HANDLE;
+      alloc_info.pUserData = nullptr;
+    }
+    MemoryUsage &setFlags( VmaAllocationCreateFlags v ) {
+      alloc_info.flags = v;
+      return *this;
+    }
+    MemoryUsage &setUsage( VmaMemoryUsage v ) {
+      alloc_info.usage = v;
+      return *this;
+    }
+    MemoryUsage &setRequiredFlags( VkMemoryPropertyFlags v ) {
+      alloc_info.required_flags = v;
+      return *this;
+    }
+    MemoryUsage &setPreferredFlags( VkMemoryPropertyFlags v ) {
+      alloc_info.preferred_flags = v;
+      return *this;
+    }
+    MemoryUsage &setPool( VmaPool v ) {
+      alloc_info.pool = v;
+      return *this;
+    }
+    MemoryUsage &setPUserData( void *v ) {
+      alloc_info.pUserData = v;
+      return *this;
+    }
+    VmaAllocationCreateInfo alloc_info;
+  };
+}
+
+std::shared_ptr<  >
+get_buffer(
+  const std::shared_ptr< VmaAllocator > &allocator,
+  VmaMemoryUsage usage;
+) {
+  VmaAllocationCreateInfo intermediate_vertex_buffer_alloc_info = {};
+  intermediate_vertex_buffer_alloc_info.usage = usage;
+  VkBuffer intermediate_vertex_buffer_;
+  {
+    const auto result = vmaCreateBuffer( allocator, &intermediate_vertex_buffer_create_info, &intermediate_vertex_buffer_alloc_info, &intermediate_vertex_buffer_, &intermediate_vertex_buffer_allocation, nullptr );
+    if( result != VK_SUCCESS ) vk::throwResultException( vk::Result( result ), "バッファを作成できない" );
+  }
+  vk::Buffer intermediate_vertex_buffer( intermediate_vertex_buffer_ );
+
+
+int main( int argc, const char *argv[] ) {
+  auto config = liblnn::parse_configs( argc, argv );
+  auto [instance,physical_device] = liblnn::get_instance(
+    config,
+    {},{},
+    {},{}
+  );
+  auto [device,queue,command_pool] = liblnn::get_device(
+    config, physical_device, {}, {}
+  );
+  std::vector< vk::DescriptorPoolSize > descriptor_pool_size{
+    vk::DescriptorPoolSize().setType( vk::DescriptorType::eStorageBuffer ).setDescriptorCount( 2 )
+  };
+  auto descriptor_pool = get_descriptior_pool( device, descriptor_pool_size, 100 );
+  const std::vector< vk::DescriptorSetLayoutBinding > descriptor_set_layout_bindings{
+    vk::DescriptorSetLayoutBinding()
+      .setDescriptorType( vk::DescriptorType::eStorageBuffer )
+      .setDescriptorCount( 1 )
+      .setBinding( 0 )
+      .setStageFlags( vk::ShaderStageFlagBits::eCompute )
+      .setPImmutableSamplers( nullptr ),
+    vk::DescriptorSetLayoutBinding()
+      .setDescriptorType( vk::DescriptorType::eStorageBuffer )
+      .setDescriptorCount( 1 )
+      .setBinding( 1 )
+      .setStageFlags( vk::ShaderStageFlagBits::eCompute )
+      .setPImmutableSamplers( nullptr )
+  };
+  auto [descriptor_sets,descriptor_set_layout] = get_descriptor_set( device, descriptor_pool, descriptor_set_layout_bindings );
+  std::vector< vk::PushConstantRange > push_constant_range{
+    vk::PushConstantRange()
+      .setStageFlags( vk::ShaderStageFlagBits::eVertex|vk::ShaderStageFlagBits::eCompute )
+      .setOffset( 0 )
+      .setSize( sizeof( uint32_t ) * 2 )
+  };
+  auto pipeline_layout = get_pipeline_layout( device, descriptor_set_layout, push_constant_range );
+  auto module = liblnn::get_shader( device, "test.spv" );
+  auto pipeline_cache = get_pipeline_cache( device );
+  std::shared_ptr< std::vector< vk::Pipeline > > pipelines(
+    new std::vector< vk::Pipeline >(
+      device->createComputePipelines(
+        *pipeline_cache,
+        std::vector< vk::ComputePipelineCreateInfo >{
+          vk::ComputePipelineCreateInfo()
+            .setStage(
+              vk::PipelineShaderStageCreateInfo()
+                .setStage( vk::ShaderStageFlagBits::eCompute )
+                .setModule( *module )
+                .setPName( "main" )
+            )
+            .setLayout( *pipeline_layout )
+        }
+      )
+    ),
+    [device,pipeline_cache,module,pipeline_layout]( std::vector< vk::Pipeline > *p ) {
+      if( p ) std::for_each( p->begin(), p->end(), [device]( auto &v ) { device->destroyPipeline( v ); } );
+      delete p;
+    }
+  );
+  
+  std::cout << "ok" << std::endl;
+}
+

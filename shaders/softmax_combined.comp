@@ -1,0 +1,70 @@
+#version 450
+
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_ARB_shading_language_420pack : enable
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+/*
+  ローカルグループのサイズは( 入力ベクタの長さ, 1, 1 )に合わせる
+  ( 1, 1, バッチサイズ )でdispatch
+  入力ベクタ、教師データ、入力勾配のサイズはPower of 2でなければならない
+  入力ベクタ、教師データ、入力勾配のサイズはwidth*batch_sizeでなければならない
+  出力データのサイズはbatch_sizeでなければならない
+  spec[ 1 ] 入力ベクタの長さ
+  pcなし
+  b[ 0 ] 入力ベクタ
+  b[ 1 ] 出力ベクタ
+  b[ 3 ] 入力勾配
+  b[ 5 ] 教師データ
+*/
+
+layout(local_size_x_id = 1, local_size_y = 1 ) in;
+layout(std430, binding = 0) buffer layout0 {
+  float input_data[];
+};
+layout(std430, binding = 1) buffer layout1 {
+  float output_data[];
+};
+layout(std430, binding = 3) buffer layout3 {
+  float input_grad[];
+};
+layout(std430, binding = 5) buffer layout4 {
+  float teacher_data[];
+};
+layout(constant_id = 3) const uint width = 1024;
+layout(constant_id = 4) const uint local_memory_size = 1024;
+shared float local_sum[ local_memory_size ];
+
+float large_sum( in float value ) {
+  float sg_sum = subgroupAdd( value );
+  local_sum[ gl_SubgroupID ] = sg_sum;
+  barrier();
+  //memoryBarrierShared();
+  uint len = gl_NumSubgroups; // 32
+  while( len > 1 ) {
+    uint index = gl_SubgroupInvocationID + gl_SubgroupID * gl_SubgroupSize;
+    float sum = subgroupAdd( index < len ? local_sum[ index ] : 0.0 );
+    local_sum[ gl_SubgroupID ] = sum;
+    barrier();
+    len /= gl_SubgroupSize;
+  }
+  barrier();
+  return local_sum[ 0 ];
+}
+
+void main() {
+  const uint input_index = gl_GlobalInvocationID.x;
+  const uint data_index = gl_GlobalInvocationID.z;
+  float value1 = input_index < width ? exp( input_data[ input_index + data_index * width ] * 0.5 + 0.5 ) : 0.0;
+  float y = value1 / ( large_sum( float( value1 ) ) + 1.0e-10 );
+  float t = teacher_data[ input_index + data_index * width ];
+  float y_ = max( y, 1.0e-10 );
+  float value2 = input_index < width ? t * log( y_ ) : 0.0;
+  float l = -large_sum( float( value2 ) );
+  if( input_index == 0 )
+    output_data[ data_index ] = l; // l;
+  if( input_index < width )
+    input_grad[ input_index + data_index * width ] = float( y - t ) * 0.5;
+}
+

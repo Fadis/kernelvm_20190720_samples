@@ -1,5 +1,6 @@
-MIT License
-
+#ifndef LIBLNN_INCLUDE_COMMON_SETTER_H
+#define LIBLNN_INCLUDE_COMMON_SETTER_H
+/*
 Copyright (c) 2019 Naomasa Matsubayashi (aka. Fadis)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,3 +20,25 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+
+#define LIBLNN_SET_SMALL_VALUE( name ) \
+  template< typename T > \
+  auto set_ ## name ( T v ) { \
+    name = v; \
+    return *this; \
+  }
+#define LIBLNN_SET_LARGE_VALUE( name ) \
+  template< typename T > \
+  auto set_ ## name ( const T &v ) { \
+    name = v; \
+    return *this; \
+  } \
+  template< typename T > \
+  auto set_ ## name ( T &&v ) { \
+    name = std::move( v ); \
+    return *this; \
+  }
+
+#endif

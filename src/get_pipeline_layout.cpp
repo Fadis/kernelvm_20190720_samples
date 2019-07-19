@@ -1,5 +1,4 @@
-MIT License
-
+/*
 Copyright (c) 2019 Naomasa Matsubayashi (aka. Fadis)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,3 +18,32 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+#include <liblnn/pipeline_layout.h>
+namespace liblnn {
+  std::shared_ptr< vk::PipelineLayout >
+  get_pipeline_layout(
+    const std::shared_ptr< vk::Device > &device,
+    const std::shared_ptr< vk::DescriptorSetLayout > &descriptor_set_layout,
+    const std::vector< vk::PushConstantRange > &push_constant_range
+  ) {
+    auto pipeline_layout = device->createPipelineLayout(
+      vk::PipelineLayoutCreateInfo()
+        .setSetLayoutCount( 1 )
+        .setPSetLayouts( descriptor_set_layout.get() )
+        .setPushConstantRangeCount( push_constant_range.size() )
+        .setPPushConstantRanges( push_constant_range.data() )
+    );
+    return std::shared_ptr< vk::PipelineLayout >(
+      new vk::PipelineLayout( pipeline_layout ),
+      [device]( vk::PipelineLayout *p ) {
+        if( p ) {
+          device->destroyPipelineLayout( *p );
+          delete p;
+        }
+      }
+    );
+  }
+}
+

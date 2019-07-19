@@ -1,5 +1,6 @@
-MIT License
-
+#ifndef LIBLNN_INCLUDE_LAYER_H
+#define LIBLNN_INCLUDE_LAYER_H
+/*
 Copyright (c) 2019 Naomasa Matsubayashi (aka. Fadis)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,3 +20,17 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+#include <liblnn/layer_def.h>
+namespace liblnn {
+  class layer {
+  public:
+    layer( const layer_def &def_ ) : def( def_ ) {}
+    void operator()( vk::CommandBuffer& ) const;
+  private:
+    layer_def def;  
+  };
+}
+#endif
+

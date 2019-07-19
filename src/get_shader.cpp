@@ -1,5 +1,4 @@
-MIT License
-
+/*
 Copyright (c) 2019 Naomasa Matsubayashi (aka. Fadis)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,3 +18,33 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+#include <vector>
+#include <iterator>
+#include <fstream>
+#include <liblnn/shader.h>
+
+namespace liblnn {
+  std::shared_ptr< vk::ShaderModule >
+  get_shader(
+    const std::shared_ptr< vk::Device > &device,
+    const std::string &filename
+  ) {
+    std::fstream file( filename, std::ios::in|std::ios::binary );
+    const std::vector< char > bin( ( std::istreambuf_iterator< char >( file ) ), std::istreambuf_iterator<char>() ); 
+    auto module = device->createShaderModule(
+      vk::ShaderModuleCreateInfo().setCodeSize( bin.size() ).setPCode( reinterpret_cast< const uint32_t* >( bin.data() ) )
+    );
+    return std::shared_ptr< vk::ShaderModule >(
+      new vk::ShaderModule( std::move( module ) ),
+      [device]( vk::ShaderModule *p ) {
+        if( p ) {
+          device->destroyShaderModule( *p );
+          delete p;
+        }
+      }
+    );
+  }
+}
+

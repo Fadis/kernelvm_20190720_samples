@@ -1,0 +1,47 @@
+#version 450
+
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_ARB_shading_language_420pack : enable
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(constant_id = 3) const uint input_size = 1024;
+
+layout(local_size_x_id = 1, local_size_y_id = 2) in;
+layout(std430, binding = 2) buffer layout2 {
+  vec4 weight[];
+};
+
+float prand( vec2 i ) {
+  return fract(sin(dot( i.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
+
+const float PI = 3.1415926535897932384626433832795;
+
+float boxmuller( vec2 i, float mu, float sigma ) {
+  float x = 1 - prand( i );
+  float y = prand( vec2( i.y, x ) );
+  float n = prand( vec2( x, y * PI ) );
+  float v = sqrt( -2.0 * log( x ) ) * cos( 2 * PI * n );
+  return mu + sigma * v;
+}
+
+float he_init_value( vec2 i, uint n ) {
+  float value = boxmuller( i, 0.0, sqrt( 2 ) / sqrt( n ) );
+  return value;
+}
+
+float xavier_init_value( vec2 i, uint n ) {
+  float value = boxmuller( i, 0.0, 1.0 / sqrt( n ) );
+  return value;
+}
+
+void main() {
+  const uint x = gl_GlobalInvocationID.x;
+  const uint y = gl_GlobalInvocationID.y;
+  const uint width = gl_WorkGroupSize.x * gl_NumWorkGroups.x;
+  const uint height = gl_WorkGroupSize.y * gl_NumWorkGroups.y;
+  const uint index = x + y * width;
+  weight[ index ] = vec4( he_init_value( vec2( float( x )/width, float( y )/height ), input_size ), 0, 0, 0 );
+}
+

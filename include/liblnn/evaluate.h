@@ -1,5 +1,6 @@
-MIT License
-
+#ifndef LIBLNN_INCLUDE_EVALUATE_H
+#define LIBLNN_INCLUDE_EVALUATE_H
+/*
 Copyright (c) 2019 Naomasa Matsubayashi (aka. Fadis)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,3 +20,17 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+#include <memory>
+#include <cstddef>
+#include <liblnn/buffer.h>
+namespace liblnn {
+  float evaluate(
+    std::shared_ptr< liblnn::buffer< float > > &output,
+    std::shared_ptr< liblnn::buffer< float > > &expected,
+    size_t batch_size
+  );
+}
+#endif
+

@@ -1,5 +1,6 @@
-MIT License
-
+#ifndef LIBLNN_INCLUDE_PIPELINE_CACHE_H
+#define LIBLNN_INCLUDE_PIPELINE_CACHE_H
+/*
 Copyright (c) 2019 Naomasa Matsubayashi (aka. Fadis)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,3 +20,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+#include <memory>
+#include <vulkan/vulkan.hpp>
+namespace liblnn {
+  std::shared_ptr< vk::PipelineCache >
+  get_pipeline_cache(
+    const std::shared_ptr< vk::Device > &device
+  );
+}
+#endif
+

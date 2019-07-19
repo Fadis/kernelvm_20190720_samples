@@ -1,5 +1,4 @@
-MIT License
-
+/*
 Copyright (c) 2019 Naomasa Matsubayashi (aka. Fadis)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,3 +18,24 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+*/
+
+#include <liblnn/pipeline_cache.h>
+namespace liblnn {
+  std::shared_ptr< vk::PipelineCache >
+  get_pipeline_cache(
+    const std::shared_ptr< vk::Device > &device
+  ) {
+    auto pipeline_cache = device->createPipelineCache( vk::PipelineCacheCreateInfo() );
+    return std::shared_ptr< vk::PipelineCache >(
+      new vk::PipelineCache( pipeline_cache ),
+      [device]( vk::PipelineCache *p ) {
+        if( p ) {
+          device->destroyPipelineCache( *p );
+          delete p;
+        }
+      }
+    );
+  }
+}
+
